@@ -1,0 +1,5 @@
+name = Node Flush
+description = This module helps you to delete nodes of a particular content type and you can also schedule the nodes to be deleted with in a specific interval of time.
+package = Other
+version = VERSION
+core = 7.x

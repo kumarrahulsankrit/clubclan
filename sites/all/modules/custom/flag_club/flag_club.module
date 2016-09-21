@@ -1,0 +1,25 @@
+<?php
+
+function flag_club_user_update(&$edit, $account, $category) {
+/*    global $user;
+    $user = user_load($user->uid);
+    if($account->uid == $user->uid):
+
+    $flag = flag_get_flag('follow');
+    $current_cids = array();
+    foreach($account->field_list_of_clubs['und'] as $club_id):
+        $current_cids[] = $club_id['target_id'];
+     //   $flag->flag('flag', $club_id['target_id'],$account);
+        endforeach;
+
+        foreach($user->field_list_of_clubs['und'] as $prev_clubs_id):
+            if(in_array($prev_clubs_id['target_id'], $current_cids)){
+                $flag->flag('flag', $club_id['target_id'],$account);
+            }else{
+                $flag->flag('unflag', $prev_clubs_id['target_id'],$account);
+            }
+
+        endforeach;
+
+    endif;*/
+}

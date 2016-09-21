@@ -1,0 +1,160 @@
+<?php
+
+/**
+ * Implements hook_entity_info().
+ */
+function gather_mediator_entity_info() {
+    $return = array(
+        'live_match_chat' => array(
+            'label' => t('Live Match Chat'),
+            'base table' => 'chat',
+            'uri callback' => 'chat_uri',
+            'fieldable' => TRUE,
+            'controller class' => 'chatController',
+            'entity keys' => array(
+                'id' => 'cid',
+                'bundle' => 'node_type',
+                'label' => 'chat',
+                'language' => 'language',
+            ),
+            'bundles' => array(),
+            'view modes' => array(
+                'full' => array(
+                    'label' => t('Full comment'),
+                    'custom settings' => FALSE,
+                ),
+            ),
+            'static cache' => FALSE,
+        ),
+    );
+
+    foreach (node_type_get_names() as $type => $name) {
+        $return['chat']['bundles']['chat_entity_node_' . $type] = array(
+            'label' => t('@node_type chat_entity', array('@node_type' => $name)),
+            // Provide the node type/bundle name for other modules, so it does not
+            // have to be extracted manually from the bundle name.
+            'node bundle' => $type,
+            'admin' => array(
+                // Place the Field UI paths for comments one level below the
+                // corresponding paths for nodes, so that they appear in the same set
+                // of local tasks. Note that the paths use a different placeholder name
+                // and thus a different menu loader callback, so that Field UI page
+                // callbacks get a comment bundle name from the node type in the URL.
+                // See comment_node_type_load() and comment_menu_alter().
+                'path' => 'admin/structure/types/manage/%chat_entity_node_type/chat',
+                'bundle argument' => 4,
+                'real path' => 'admin/structure/types/manage/' . str_replace('_', '-', $type) . '/chat',
+                'access arguments' => array('administer content types'),
+            ),
+        );
+    }
+
+}
+
+/**
+ * Menu loader callback for Field UI paths.
+ *
+ * Return a comment bundle name from a node type in the URL.
+ */
+function chat_entity_node_type_load($name) {
+    if ($type = node_type_get_type(strtr($name, array('-' => '_')))) {
+        return 'chat_entity_node_' . $type->type;
+    }
+}
+
+/**
+ * Implements hook_node_type_insert().
+ *
+ * Creates a comment body field for a node type created while the comment module
+ * is enabled. For node types created before the comment module is enabled,
+ * hook_modules_enabled() serves to create the body fields.
+ *
+ * @see comment_modules_enabled()
+ */
+function chat_entity_node_type_insert($info) {
+    _chat_entity_body_field_create($info);
+}
+
+
+function chat_entity_uri($chat) {
+    return array(
+        'path' => 'chat/' . $chat->chat_id,
+        'options' => array('fragment' => 'chat-' . $chat->chat_id,
+    ));
+}
+/**
+ * Creates a comment_body field instance for a given node type.
+ */
+function _chat_entity_body_field_create($info) {
+    // Create the field if needed.
+    if (!field_read_field('chat_entity_body', array('include_inactive' => TRUE))) {
+        $field = array(
+            'field_name' => 'chat_entity_body',
+            'type' => 'text_long',
+            'entity_types' => array('chat_entity'),
+        );
+        field_create_field($field);
+    }
+    // Create the instance if needed.
+    if (!field_read_instance('chat_entity', 'chat_entity_body', 'chat_entity_node_' . $info->type, array('include_inactive' => TRUE))) {
+        field_attach_create_bundle('chat_entity', 'chat_entity_node_' . $info->type);
+        // Attaches the body field by default.
+        $instance = array(
+            'field_name' => 'chat_entity_body',
+            'label' => 'Chat',
+            'entity_type' => 'chat_entity',
+            'bundle' => 'chat_entity_node_' . $info->type,
+            'settings' => array('text_processing' => 1),
+            'required' => TRUE,
+            'display' => array(
+                'default' => array(
+                    'label' => 'hidden',
+                    'type' => 'text_default',
+                    'weight' => 0,
+                ),
+            ),
+        );
+        field_create_instance($instance);
+    }
+}
+
+
+/**
+ * Implements hook_menu().
+ */
+function chat_entity_menu() {
+    $items['admin/content/chat'] = array(
+        'title' => 'Comments',
+        'description' => 'List and edit site comments and the comment approval queue.',
+        'page callback' => 'chat_entity',
+        'access arguments' => array('administer chat'),
+        'type' => MENU_LOCAL_TASK | MENU_NORMAL_ITEM,
+        'file' => 'chat_entity.admin.inc',
+    );
+    // Tabs begin here.
+    $items['admin/content/chat/new'] = array(
+        'title' => 'Published chats',
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+        'weight' => -10,
+    );
+
+
+    return $items;
+}
+
+
+/**
+ * Implements hook_menu_alter().
+ */
+function chat_entity_menu_alter(&$items) {
+    // Add comments to the description for admin/content.
+    $items['admin/content']['description'] = 'Administer content, comments and chats.';
+
+    // Adjust the Field UI tabs on admin/structure/types/manage/[node-type].
+    // See comment_entity_info().
+    $items['admin/structure/types/manage/%chat_entity_node_type/chat/fields']['title'] = 'Chat fields';
+    $items['admin/structure/types/manage/%chat_entity_node_type/chat/fields']['weight'] = 5;
+    $items['admin/structure/types/manage/%chat_entity_node_type/chat/display']['title'] = 'Chat display';
+    $items['admin/structure/types/manage/%chat_entity_node_type/chat/display']['weight'] = 6;
+}
+

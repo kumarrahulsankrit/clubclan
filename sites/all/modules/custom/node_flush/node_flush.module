@@ -1,0 +1,107 @@
+<?php
+
+
+/**
+ * Implements hook_menu().
+ */
+
+function node_flush_menu(){
+
+    $items["admin/settings/node_flush"] = array(
+        "title" => "Delete Nodes",
+        "description" => "Delete scheduled content or immediately",
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('node_flush_form'),
+        'access arguments' => array('access administration pages'),
+        'type' => MENU_NORMAL_ITEM
+
+
+
+    );
+
+
+
+    return $items;
+}
+
+/**
+ * Implements hook_cronapi().
+ */
+function node_flush_cronapi() {
+    $items = array();
+    $items['node_flush'] = array(
+        'title' => t('Delete nodes of a content type'),
+        'callback' => 'node_flush_cron_job',
+        'callback arguments' => array('job'),
+        'enabled' => FALSE,
+        );
+    return $items;
+}
+
+/**
+ * The callback for the cron job,
+ */
+function node_flush_cron_job($job = "") {
+    $duration = variable_get('node_flush_duration', 'value');
+    $content_type = variable_get('node_flush_type', 'value');
+    $results = db_select('node', 'n')
+        ->fields('n', array('nid'))
+        ->condition('type',$content_type)
+        ->execute();
+    foreach ($results as $result) {
+        $nids[] = $result->nid;
+    }
+
+    if (!empty($nids)) {
+        node_delete_multiple($nids);
+        drupal_set_message(t('Deleted %count nodes.', array('%count' => count($nids))));
+    }
+}
+
+
+function node_flush_form($form,&$form_submit) {
+
+    $content_types = node_type_get_types();
+    $form['node_flush_type'] = array(
+        '#title' => t('Select content type'),
+        '#type' => 'select',
+        '#required' => TRUE,
+        '#options' => array_keys($content_types),
+        "#default_value" => variable_get('node_flush_type', 'value')
+    );
+    $form['node_flush_duration'] = array(
+        '#title' => t('Select duration'),
+        '#type' => 'select',
+        '#required' => TRUE,
+        '#options' => array("now"=>"Now", "1"=>"Daily", "7"=>"Weekly", "30" => "Monthly"),
+        "#default_value" => variable_get('node_flush_duration', 'value')
+    );
+
+    $duration = variable_get('node_flush_duration', 'key');
+
+    if($duration == "now"){
+        node_flush_cron_job();
+    }
+    return system_settings_form($form);
+}
+
+/**
+ *  Implements hook_cron().
+ */
+function node_flush_cron()
+{
+    $duration = variable_get('node_flush_duration', 'value');
+    $content_type = variable_get('node_flush_type', 'value');
+    $results = db_select('node', 'n')
+        ->fields('n', array('nid'))
+        ->condition('type','matches')
+        ->execute();
+    foreach ($results as $result) {
+        $nids[] = $result->nid;
+    }
+
+    if (!empty($nids)) {
+        node_delete_multiple($nids);
+        drupal_set_message(t('Deleted %count nodes.', array('%count' => count($nids))));
+    }
+}

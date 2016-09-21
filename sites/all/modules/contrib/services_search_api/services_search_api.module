@@ -1,0 +1,20 @@
+<?php
+
+/**
+ * @file
+ * Module main hooks implementation.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function services_search_api_permission() {
+
+  return array(
+    'services_search_api search from any index' => array(
+      'title' => t('Retrieve search result from any index'),
+      'description' => t('Allows to query any defined index and retrieve results.'),
+    ),
+  );
+
+}

@@ -1,0 +1,81 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function chat_entity_uninstall() {
+  // Delete comment_body field.
+  field_delete_field('chat_entity_body');
+
+  // Remove variables.
+  variable_del('comment_block_count');
+  $node_types = array_keys(node_type_get_types());
+  foreach ($node_types as $node_type) {
+    field_attach_delete_bundle('chat_entity', 'chat_node_' . $node_type);
+
+  }
+}
+
+function chat_entity_schema() {
+  $schema['chat_entity'] = array(
+    'description' => 'Stores chat and associated data.',
+    'fields' => array(
+      'chat_id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique comment ID.',
+      ),
+      'nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The {node}.nid to which this comment is a reply.',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The {users}.uid who authored the comment. If set to 0, this comment was created by an anonymous user.',
+      ),
+      'chat' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The chat content.',
+      )
+    ),
+
+    'primary key' => array('cid'),
+    'foreign keys' => array(
+      'chat_node' => array(
+        'table' => 'node',
+        'columns' => array('nid' => 'nid'),
+      ),
+      'chat_author' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+  );
+
+  return $schema;
+}
+
+function chat_entity_modules_enabled($modules) {
+  // Only react if comment module is one of the modules being enabled.
+  // hook_node_type_insert() is used to create body fields while the comment
+  // module is enabled.
+  if (in_array('chat_entity', $modules)) {
+    // Ensure that the list of node types reflects newly enabled modules.
+        node_types_rebuild();
+
+    // Create comment body fields for each node type, if needed.
+    foreach (node_type_get_types() as $type => $info) {
+      _chat_entity_body_field_create($info);
+    }
+  }
+}

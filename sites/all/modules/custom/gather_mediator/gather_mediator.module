@@ -1,0 +1,334 @@
+<?php
+/**
+ * @file
+ * Module file for Housing Schemes Services.
+ * Contains the resource declarations for the service APIs
+ * and other commons functions/hooks. if necessary
+ */
+
+function gather_mediator_permission() {
+    return array(
+        'administer gather mediator' => array(
+            'title' => t('Administer Gaather Settings'),
+            'description' => t('Perform administration tasks for Club Clan.'),
+        ),
+    );
+}
+
+function gather_mediator_menu(){
+
+    $items["settings/club_clan"] = array(
+        "title" => "Club Clan Settings",
+        "description" => "Club Clan Settings",
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('gather_mediator_form'),
+        'access arguments' => array('administer gather mediator'),
+        'type' => MENU_NORMAL_ITEM
+
+
+
+    );
+
+    return $items;
+}
+
+function gather_mediator_form($form,&$form_submit) {
+
+    $form['home_feed_url'] = array(
+        '#title' => t('Enter Home Feed URL'),
+        '#type' => 'textfield',
+        '#required' => False,
+        "#default_value" => variable_get('home_feed_url', 'value')
+    );
+
+
+    return system_settings_form($form);
+}
+
+/**
+ * Implements hook_services_resources().
+ * Create service resource for APIs to return the necessary json data.
+ */
+function gather_mediator_services_resources()
+{
+    $resources = array();
+
+//Include the necessary inc files.
+    module_load_include('inc', 'gather_mediator', 'includes/check_social.services');
+    module_load_include('inc', 'gather_mediator', 'includes/match.services');
+    module_load_include('inc', 'gather_mediator', 'includes/club_listing.services');
+    module_load_include('inc', 'gather_mediator', 'includes/clubs_matches.services');
+    module_load_include('inc', 'gather_mediator', 'includes/livematch.services');
+    module_load_include('inc', 'gather_mediator', 'includes/usermatch.services');
+    module_load_include('inc', 'gather_mediator', 'includes/match_data.services');
+
+//Service Apis for contents.
+    $resources += gather_mediator_services_resource();
+    $resources += gather_mediator_match_services_resource();
+    $resources += gather_mediator_clubs_matches_services_resource();
+    $resources += gather_mediator_club_listing_services_resource();
+    $resources += gather_mediator_livematch_services_resource();
+    $resources += gather_mediator_usermatch_services_resource();
+    $resources += gather_mediator_match_data_services_resource();
+    $resources += gather_mediator_home_feed_url_services_resource();
+    $resources += gather_mediator_new_clubs_services_resource();
+    $resources += gather_mediator_clubs_fb_tw_services_resource();
+
+    return $resources;
+}
+
+
+function gather_mediator_mail_alter(&$message)
+{
+    // Alter password reset
+    if ($message['id'] == 'user_password_reset') {
+
+        if ($account = user_load_by_mail($message['to'])) {
+            $edit['pass'] = rand();
+            $original_pass = $account->pass;
+            user_save($account, $edit);
+            if ($account->pass != $original_pass) {
+                drupal_session_destroy_uid($account->uid);
+                if ($account->uid == $GLOBALS['user']->uid) {
+                    drupal_session_regenerate();
+                }
+            }
+            $message['body'][0] = "A request to reset the password for your account has been made at ClubClan.
+
+        Your Username is: " . $account->name . "
+        Your new password is: " . $edit['pass'] . "
+
+
+
+        --  ClubClan team";
+        }
+    }
+}
+
+
+function gather_mediator_services_request_postprocess_alter($controller, $args, &$result)
+{
+
+    if(isset($controller['view info']['view_name'])){
+        if ($controller['view info']['view_name'] == "manage_clubclan_dashboard") {
+            foreach ($result as $result_social_feed):
+                if (!empty($result_social_feed->Club_Name)) {
+                    $clubs = node_load($result_social_feed->Club_Name);
+                    $club_img = file_create_url($clubs->field_club_image['und'][0]['uri']);
+                    $result_social_feed->Club_Name = $clubs->title;
+                    $result_social_feed->club_id = $clubs->nid;
+                    $result_social_feed->Club_image = $club_img;
+                }
+                //print_r($clubs);die();
+            endforeach;
+        }
+    }
+
+    if (isset($controller['view info']['view_name'])) {
+        if ($controller['view info']['view_name'] == "logedin_user_details") {
+            if (empty($result[0]->user_image)) {
+
+                $result[0]->user_image = '';
+            }
+            if (empty($result[0]->fb_userid)) {
+
+                $result[0]->fb_userid = '';
+            }
+            if (empty($result[0]->twitter_user_id)) {
+
+                $result[0]->twitter_user_id = '';
+            }
+            if (isset($result[0]->likes)) {
+                $query5 = new EntityFieldQuery();
+                $entities = $query5->entityCondition('entity_type', 'node')
+                    ->propertyCondition('status', 1)
+                    ->entityCondition('bundle', "matches")
+                    ->propertyCondition('uid', $result[0]->uid)
+                    ->execute();
+                if (!empty($entities['node'])) {
+                    $nodes = node_load_multiple(array_keys($entities['node']));
+                }
+                $match_likes = 0;
+                if (!empty($nodes)) {
+                    foreach ($nodes as $key => $values) {
+                        $match_likes +=  $values->field_match_likes['und'][0]['value'];
+                    }
+
+                }
+                $result[0]->likes = $match_likes;
+            }
+        }
+    }
+
+    if (isset($controller['view info']['view_name'])) {
+        if ($controller['view info']['view_name'] == "report_listing") {
+
+            foreach ($result as $result_empty):
+
+                $team_obj = node_load($result_empty->team_id);
+                $team_img = file_create_url($team_obj->field_club_image['und'][0]['uri']);
+                $result_empty->team_img = $team_img;
+                $result_empty->report_detail = strip_tags($result_empty->report_detail);
+
+                $title = decode_entities($result_empty->report_title);
+                $detail = decode_entities($result_empty->report_detail);
+               // print_r($detail);die;
+                $result_empty->report_title = $title;
+                $result_empty->report_detail = $detail;
+                if (empty($result_empty->points)) {
+                    $result_empty->points = '';
+                }
+                if (empty($result_empty->goals)) {
+                    $result_empty->goals = '';
+                }
+                if (empty($result_empty->red_card)) {
+                    $result_empty->red_card = '';
+                }
+
+                if (empty($result_empty->yellow_card)) {
+                    $result_empty->yellow_card = '';
+                }
+                if (empty($result_empty->black_card)) {
+                    $result_empty->black_card = '';
+                }
+                if (empty($result_empty->halffull_time)) {
+                    $result_empty->halffull_time = '';
+                }
+                if (empty($result_empty->last_commented_time) && $result_empty->last_commented_time != 0 ) {
+                    $result_empty->last_commented_time = '';
+                }
+                if (empty($result_empty->team_id)) {
+                    $result_empty->team_id = '';
+                }
+                if (empty($result_empty->substitute)) {
+                    $result_empty->substitute = '';
+                }
+                if (empty($result_empty->comment)) {
+                    $result_empty->comment = '';
+                }
+                if (empty($result_empty->time_period)) {
+                    $result_empty->time_period = '';
+                }
+
+            endforeach;
+
+        }
+    }
+    if (isset($controller['view info']['view_name'])) {
+        if ($controller['view info']['view_name'] == "tasks") {
+             $match_id = $_REQUEST['match_id'];
+            $current_time = date("l, F d, Y - H:i");
+
+            //print_r($current_time);
+            //  foreach($result as $match):
+               $chat_data =  db_select('example_task','et') 
+                    ->fields('et',array('match_thumb'))
+                    ->condition("nid","$match_id","=")
+                    ->orderBy("created","DESC")
+                    ->execute()
+                    ->fetchAll();
+            $i = 0;
+
+            if(isset($chat_data)) {
+                foreach ($chat_data as $key => $chat) {
+                        $desc = decode_entities($result[$i]->description);
+                   $result[$i]->match_thumb = $chat->match_thumb;
+                   $result[$i]->current_time = $current_time;
+                    $result[$i]->description = $desc;
+                    $i++;
+                }
+            }//  endforeach;
+
+        }
+    }
+    if (isset($controller['view info']['view_name'])) {
+    if ($controller['view info']['view_name'] == "clubs_listing") {
+        foreach ($result as $key => $profile_clubs) {
+           $title_pro =  decode_entities($profile_clubs->title);
+            $profile_clubs->title = $title_pro; 
+        }
+
+    }
+}
+
+
+}
+
+function gather_mediator_services_request_preprocess_alter($controller, &$args, $options)
+{
+
+
+    if ($options['resource'] == "livematch_report" && !isset($options['method'])) {
+
+        $args[0]['nid'] = $args[0]['match_id'];
+        $args[0]['subject'] = $args[0]['report_title'];
+        $args[0]['comment_body']['und'][0]['value'] = $args[0]['report_detail'];
+        $args[0]['field_points']['und'][0]['value'] = $args[0]['points'];
+        $args[0]['field_goals']['und'][0]['value'] = $args[0]['goals'];
+        $args[0]['field_yellow_card']['und'][0]['value'] = $args[0]['yellow_card'];
+        $args[0]['field_red_card']['und'][0]['value'] = $args[0]['red_card'];
+        $args[0]['field_black_card']['und'][0]['value'] = $args[0]['black_card'];
+        $args[0]['field_half_full_time']['und'][0]['value'] = $args[0]['half_full_time'];
+        $args[0]['field_team_id']['und'][0]['value'] = $args[0]['team_id'];
+        $args[0]['field_last_commented_time']['und'][0]['value'] = $args[0]['last_commented_time'];
+        $args[0]['field_substitute']['und'][0]['value'] = $args[0]['substitute'];
+        $args[0]['field_comment']['und'][0]['value'] = $args[0]['comment'];
+        $args[0]['field_time_period']['und'][0]['value'] = $args[0]['time_period'];
+
+
+    }
+
+    if ($options['resource'] == "livematch_report" && isset($options['method'])) {
+
+        $args[1]['nid'] = $args[1]['match_id'];
+        $args[1]['subject'] = $args[1]['report_title'];
+        $args[1]['comment_body']['und'][0]['value'] = $args[1]['report_detail'];
+        $args[1]['field_points']['und'][0]['value'] = $args[1]['points'];
+        $args[1]['field_goals']['und'][0]['value'] = $args[1]['goals'];
+        $args[1]['field_yellow_card']['und'][0]['value'] = $args[1]['yellow_card'];
+        $args[1]['field_red_card']['und'][0]['value'] = $args[1]['red_card'];
+        $args[1]['field_black_card']['und'][0]['value'] = $args[1]['black_card'];
+        $args[1]['field_half_full_time']['und'][0]['value'] = $args[1]['half_full_time'];
+        $args[1]['field_last_commented_time']['und'][0]['value'] = $args[1]['last_commented_time'];
+        $args[1]['field_substitute']['und'][0]['value'] = $args[1]['substitute'];
+        $args[1]['field_comment']['und'][0]['value'] = $args[1]['comment'];
+        $args[1]['field_time_period']['und'][0]['value'] = $args[1]['time_period'];
+
+    }
+}
+
+/**
+ * Implements hook_form_alter(&$form, &$form_state, $form_id)
+ * social_feed_node_form
+ */
+
+function gather_mediator_form_alter(&$form, $form_state, $form_id) {
+   //drupal_set_message($form_id);
+   if ($form_id == "social_feed_node_form") {
+    //  $form['actions']['submit']['#submit'][] = 'gather_mediator_submit';
+   }
+}
+
+/*function gather_mediator_submit ($form, &$form_state) {
+  global $base_url;
+  $values = $form_state['values'];
+  $social_share = '/social_feed_share';
+    if (isset($values['nid'])){
+      $url = $base_url.'/node/'.$values['nid'];
+      $fb = "http://www.facebook.com/sharer.php?u=$url";
+      $twitter = "http://twitter.com/share?url=$url";
+        if($values['field_social_share']['und'][0]['value'] == 'fb_twitter_share'){
+           $social_share = $twitter.'title='.$values['title'];
+        }elseif ($values['field_social_share']['und'][0]['value'] == 'fb_twitter_share'){
+           $social_share = $fb.'&p[title]='.$values['title'];
+        }
+    }
+  $form_state['redirect'] = $fb;
+}*/
+
+
+
+
+
+
+

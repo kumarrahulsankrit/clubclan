@@ -171,9 +171,9 @@ function clubclan_form_alter( &$form, &$form_state, $form_id ) {
     if ($form_id == 'club_clan_news_node_form' || $form_id == 'clubs_node_form') {
       $form['actions']['submit']['#value'] = 'Create';
     }
-    if ($form_id == 'taxonomy_form_term') {
+   /* if ($form_id == 'taxonomy_form_term') {
       $form['actions']['submit']['#value'] = 'Add Country/County';
-    }
+    }*/
     if ($form_id == 'team_player_node_form') {
       $form['actions']['submit']['#value'] = 'Add/Create Team Player';
     }
@@ -184,7 +184,7 @@ function clubclan_menu_tree__main_menu($variables) {
   return '<ul id="main-menu-links" class="menu clearfix">'.$variables['tree'].'</ul>';
 }
 
-function clubclan_user_update(&$edit, $account, $category) {
+/*function clubclan_user_update(&$edit, $account, $category) {
 
-    dpm('ewmj');
-}
+   // dpm('ewmj');
+}*/

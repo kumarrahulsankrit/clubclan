@@ -1,0 +1,4 @@
+name = Flag Club
+description = follow unfollow club
+core = 7.x
+package = Flags

@@ -1,0 +1,13 @@
+name = Services Search API
+description = Exposes Search API indexes to Services.
+package = Services
+core = 7.x
+dependencies[] = services
+dependencies[] = services_entity
+dependencies[] = search_api
+; Information added by Drupal.org packaging script on 2016-01-27
+version = "7.x-2.0-alpha1"
+core = "7.x"
+project = "services_search_api"
+datestamp = "1453916133"
+

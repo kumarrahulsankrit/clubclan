@@ -1,0 +1,7 @@
+name = Gather Mediator
+core = 7.x
+description = Gather Mediator
+package = Custom
+dependencies[] = services
+dependencies[] = rest_server
+
